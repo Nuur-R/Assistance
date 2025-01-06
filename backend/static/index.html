@@ -66,7 +66,7 @@
     </div>
 
     <script defer>
-        const URL = "ws://localhost:9082/ws";
+        const URL = "ws://localhost:8000/ws";
         const video = document.getElementById("videoElement");
         const canvas = document.getElementById("canvasElement");
         const context = canvas.getContext("2d");
@@ -200,7 +200,7 @@
 
           audioInputContext = new (window.AudioContext ||
           window.webkitAudioContext)({ sampleRate: 24000 });
-            await audioInputContext.audioWorklet.addModule("pcm-processor.js");
+            await audioInputContext.audioWorklet.addModule("static/pcm-processor.js");
             workletNode = new AudioWorkletNode(audioInputContext, "pcm-processor");
             workletNode.connect(audioInputContext.destination);
            initialized = true;
