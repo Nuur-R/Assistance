@@ -5,7 +5,7 @@ import base64
 from fastapi import WebSocket
 # from google.genai.aio import ClientSession
 from config import client, MODEL
-from utils import set_light_values, tool_set_light_values
+from utils import set_light_values, tool_set_light_values, play_music, tool_play_music
 
 async def gemini_session_handler(websocket: WebSocket):
     await websocket.accept()
@@ -13,8 +13,8 @@ async def gemini_session_handler(websocket: WebSocket):
         config_message = await websocket.receive_text()
         config_data = json.loads(config_message)
         config = config_data.get("setup", {})
-        config["tools"] = [tool_set_light_values]
-        
+        config["tools"] = [tool_set_light_values, tool_play_music] # Tambahkan tool baru
+
         async with client.aio.live.connect(model=MODEL, config=config) as session:
             print("Connected to Gemini API")
 
@@ -43,6 +43,16 @@ async def gemini_session_handler(websocket: WebSocket):
 
                                         if name == "set_light_values":
                                             result = set_light_values(int(args["brightness"]), args["color_temp"])
+                                            function_responses.append(
+                                                {
+                                                    "name": name,
+                                                    "response": {"result": result},
+                                                    "id": call_id
+                                                }
+                                            )
+                                            await websocket.send_json({"text": json.dumps(function_responses)})
+                                        elif name == "play_music": # Tangani tool call baru
+                                            result = play_music(args["artist"], args["song_title"])
                                             function_responses.append(
                                                 {
                                                     "name": name,

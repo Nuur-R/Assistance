@@ -1,4 +1,31 @@
 # === FILE: utils.py ===
+def play_music(artist, song_title):
+    # Kode untuk memutar musik (misalnya, menggunakan library seperti vlc atau pygame)
+    return f"Memutar lagu {song_title} oleh {artist}."
+
+tool_play_music = {
+    "function_declarations": [
+        {
+            "name": "play_music",
+            "description": "Memutar lagu berdasarkan judul dan nama penyanyi.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "artist": {
+                        "type": "STRING",
+                        "description": "Nama penyanyi."
+                    },
+                    "song_title": {
+                        "type": "STRING",
+                        "description": "Judul lagu."
+                    }
+                },
+                "required": ["artist", "song_title"]
+            }
+        }
+    ]
+}
+
 def set_light_values(brightness, color_temp):
     return {
         "brightness": brightness,
