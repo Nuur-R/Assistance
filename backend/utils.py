@@ -2,6 +2,7 @@
 def get_current_datetime():
     from datetime import datetime
     now = datetime.now()
+    print(f"[FUNCTION] Date Time: {now.strftime("%Y-%m-%d %H:%M:%S")}")
     return now.strftime("%Y-%m-%d %H:%M:%S")
 
 tool_get_current_datetime = {
@@ -15,6 +16,7 @@ tool_get_current_datetime = {
 
 def play_music(artist, song_title):
     # Kode untuk memutar musik (misalnya, menggunakan library seperti vlc atau pygame)
+    print(f"[FUNCTION] Memutar lagu {song_title} oleh {artist}.")
     return f"Memutar lagu {song_title} oleh {artist}."
 
 tool_play_music = {
@@ -41,6 +43,7 @@ tool_play_music = {
 }
 
 def set_light_values(brightness, color_temp):
+    print(f"[FUNCTION] kecerahan: {brightness} dan temperatur: {color_temp}.")   
     return {
         "brightness": brightness,
         "colorTemperature": color_temp,

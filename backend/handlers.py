@@ -14,7 +14,16 @@ async def gemini_session_handler(websocket: WebSocket):
         config_data = json.loads(config_message)
         config = config_data.get("setup", {})
         config["tools"] = [tool_set_light_values, tool_play_music, tool_get_current_datetime] # Tambahkan tool baru
-
+        config["system_instruction"] = "Anda adalah adalah Rhama, AI Asisten yang dibuat untuk membantu Firdaus dalam mengeksek fungsi yang anda miliki, anda biasa merespon menggunakan bahasa Indonesia." # Tambahkan system instruction
+        config["generation_config"] = {
+            "speech_config": {
+                "voice_config": {
+                    "prebuilt_voice_config": {
+                        "voice_name": "Kore"
+                    }
+                }
+            }
+        }
         async with client.aio.live.connect(model=MODEL, config=config) as session:
             print("Connected to Gemini API")
 
