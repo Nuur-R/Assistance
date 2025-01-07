@@ -1,4 +1,18 @@
 # === FILE: utils.py ===
+def get_current_datetime():
+    from datetime import datetime
+    now = datetime.now()
+    return now.strftime("%Y-%m-%d %H:%M:%S")
+
+tool_get_current_datetime = {
+    "function_declarations": [
+        {
+            "name": "get_current_datetime",
+            "description": "Mendapatkan tanggal dan waktu saat ini.",
+        }
+    ]
+}
+
 def play_music(artist, song_title):
     # Kode untuk memutar musik (misalnya, menggunakan library seperti vlc atau pygame)
     return f"Memutar lagu {song_title} oleh {artist}."
