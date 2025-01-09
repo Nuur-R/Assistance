@@ -5,7 +5,9 @@ import base64
 from fastapi import WebSocket
 # from google.genai.aio import ClientSession
 from config import client, MODEL
-from utils import set_light_values, tool_set_light_values, play_music, tool_play_music, get_current_datetime, tool_get_current_datetime
+from tools.set_light_values import set_light_values, tool_set_light_values
+from tools.play_music import play_music, tool_play_music
+from tools.get_current_datetime import get_current_datetime, tool_get_current_datetime
 
 async def gemini_session_handler(websocket: WebSocket):
     await websocket.accept()
@@ -14,7 +16,12 @@ async def gemini_session_handler(websocket: WebSocket):
         config_data = json.loads(config_message)
         config = config_data.get("setup", {})
         config["tools"] = [tool_set_light_values, tool_play_music, tool_get_current_datetime] # Tambahkan tool baru
-        config["system_instruction"] = "Anda adalah adalah Rhama, AI Asisten yang dibuat untuk membantu Firdaus dalam mengeksek fungsi yang anda miliki, anda biasa merespon menggunakan bahasa Indonesia." # Tambahkan system instruction
+        config["system_instruction"] =  """ Anda adalah adalah Rama, AI Asisten yang dibuat untuk membantu Firdaus,
+                                            fungsi anda adalah :
+                                            1. Menjawab user dengan bahasa Indonesia, termasuk melafalkan huruf dan simbol
+                                            2. Mengeksekusi tools yg tersedia.
+                                            3. Menjawab pertanyaan  yg di ajukan user.
+                                        """
         config["generation_config"] = {
             "speech_config": {
                 "voice_config": {
