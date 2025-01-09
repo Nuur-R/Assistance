@@ -53,6 +53,16 @@
                         </button>
                     </div>
 
+                    <!-- Image Source Buttons -->
+                    <div class="button-group">
+                        <button id="webcamButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+                            Webcam
+                        </button>
+                        <button id="screenButton" class="mdl-button mdl-js-button mdl-button--raised">
+                            Screen
+                        </button>
+                    </div>
+
                     <!-- Video Element -->
                     <video id="videoElement" autoplay></video>
 
@@ -83,6 +93,7 @@
         let initialized = false;
         let audioInputContext;
         let workletNode;
+        let currentImageSource = "webcam"; // Default ke webcam
 
         // Function to start the webcam
          async function startWebcam() {
@@ -100,8 +111,20 @@
 
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
+                currentImageSource = "webcam";
             } catch (err) {
                 console.error("Error accessing the webcam: ", err);
+            }
+        }
+
+        // Function to start screen capture
+        async function startScreenCapture() {
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                video.srcObject = stream;
+                currentImageSource = "screen";
+            } catch (err) {
+                console.error("Error accessing screen capture: ", err);
             }
         }
 
@@ -117,7 +140,7 @@
         }
 
         window.addEventListener("load", async () => {
-             await startWebcam();
+             await startWebcam(); // Mulai webcam saat halaman dimuat
              setInterval(captureImage, 3000);
             connect();
 
@@ -157,7 +180,6 @@
             webSocket.send(JSON.stringify(setup_client_message));
         }
 
-
         function sendVoiceMessage(b64PCM) {
             if (webSocket == null) {
                 console.log("websocket not initialized");
@@ -194,7 +216,6 @@
             }
         }
 
-
          async function initializeAudioContext() {
           if (initialized) return;
 
@@ -205,7 +226,6 @@
             workletNode.connect(audioInputContext.destination);
            initialized = true;
         }
-
 
         function base64ToArrayBuffer(base64) {
           const binaryString = window.atob(base64);
@@ -227,7 +247,6 @@
           return float32Array;
         }
 
-
         async function injestAudioChuckToPlay(base64AudioChunk) {
            try {
               if (!initialized) {
@@ -245,7 +264,6 @@
                console.error("Error processing audio chunk:", error);
             }
         }
-
 
        function recordChunk() {
             const buffer = new ArrayBuffer(pcmData.length * 2);
@@ -308,7 +326,6 @@
             addParagraphToDiv("chatLog", message);
         }
 
-
         function addParagraphToDiv(divId, text) {
            const newParagraph = document.createElement("p");
            newParagraph.textContent = text;
@@ -319,6 +336,16 @@
         startButton.addEventListener('click', startAudioInput);
         stopButton.addEventListener('click', stopAudioInput);
 
+        const webcamButton = document.getElementById('webcamButton');
+        const screenButton = document.getElementById('screenButton');
+
+        webcamButton.addEventListener('click', async () => {
+            await startWebcam();
+        });
+
+        screenButton.addEventListener('click', async () => {
+            await startScreenCapture();
+        });
 
         class Response {
             constructor(data) {
