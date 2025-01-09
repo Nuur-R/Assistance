@@ -8,6 +8,7 @@ from config import client, MODEL
 from tools.set_light_values import set_light_values, tool_set_light_values
 from tools.play_music import play_music, tool_play_music
 from tools.get_current_datetime import get_current_datetime, tool_get_current_datetime
+from tools.type_text import type_text, tool_type_text
 
 async def gemini_session_handler(websocket: WebSocket):
     await websocket.accept()
@@ -15,7 +16,7 @@ async def gemini_session_handler(websocket: WebSocket):
         config_message = await websocket.receive_text()
         config_data = json.loads(config_message)
         config = config_data.get("setup", {})
-        config["tools"] = [tool_set_light_values, tool_play_music, tool_get_current_datetime] # Tambahkan tool baru
+        config["tools"] = [tool_set_light_values, tool_play_music, tool_get_current_datetime, tool_type_text] # Tambahkan tool baru
         config["system_instruction"] =  """ Anda adalah adalah Rama, AI Asisten yang dibuat untuk membantu Firdaus,
                                             fungsi anda adalah :
                                             1. Menjawab user dengan bahasa Indonesia, termasuk melafalkan huruf dan simbol
@@ -79,6 +80,16 @@ async def gemini_session_handler(websocket: WebSocket):
                                             await websocket.send_json({"text": json.dumps(function_responses)})
                                         elif name == "get_current_datetime":
                                             result = get_current_datetime()
+                                            function_responses.append(
+                                                {
+                                                    "name": name,
+                                                    "response": {"result": result},
+                                                    "id": call_id
+                                                }
+                                            )
+                                            await websocket.send_json({"text": json.dumps(function_responses)})
+                                        elif name == "type_text":
+                                            result = type_text(args["text"])
                                             function_responses.append(
                                                 {
                                                     "name": name,
