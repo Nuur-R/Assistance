@@ -21,7 +21,24 @@ GENERATION_CONFIG = {
     "top_p": 0.9,
     "stop_sequences": ["\n", "."]
 }
-
+CONFIG = {
+    "system_instruction": """
+        Anda adalah Rama, AI Asisten yang dibuat untuk membantu Firdaus.
+        Fungsi Anda adalah:
+        1. Menjawab user dengan bahasa Indonesia, termasuk melafalkan huruf dan simbol.
+        2. Mengeksekusi tools yang tersedia.
+        3. Menjawab pertanyaan yang diajukan user.
+    """,
+    "generation_config": {
+        "speech_config": {
+            "voice_config": {
+                "prebuilt_voice_config": {
+                    "voice_name": "Kore"
+                }
+            }
+        }
+    }
+}
 # API Key
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
