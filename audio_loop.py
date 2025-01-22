@@ -2,7 +2,7 @@ import asyncio
 import traceback
 import cv2
 import pyaudio
-from config import FORMAT, CHANNELS, SEND_SAMPLE_RATE, RECEIVE_SAMPLE_RATE, CHUNK_SIZE
+from config import FORMAT, CHANNELS, SEND_SAMPLE_RATE, RECEIVE_SAMPLE_RATE, CHUNK_SIZE, handle_tool_call
 from utils.audio_utils import open_audio_stream, close_audio_stream
 from utils.video_utils import get_frame
 from utils.api_utils import connect_to_gemini
@@ -61,6 +61,14 @@ class AudioLoop:
                     continue
                 if text := response.text:
                     print(text, end="")
+                if hasattr(response, 'tool_call'):
+                    tool_call = response.tool_call
+                    if tool_call:
+                        tool_response = handle_tool_call(tool_call)
+                        await self.session.send(
+                            tool_call_id=str(tool_response["tool_call_id"]),  # Konversi ke string jika diperlukan
+                            tool_response=tool_response["tool_response"]
+                        )
 
             while not self.audio_in_queue.empty():
                 self.audio_in_queue.get_nowait()

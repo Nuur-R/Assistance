@@ -1,7 +1,7 @@
-import os
+import os, json
 from dotenv import load_dotenv
 import pyaudio
-
+from tools import tool_set_light_values, set_light_values
 # Muat variabel dari file .env
 load_dotenv()
 
@@ -22,6 +22,7 @@ GENERATION_CONFIG = {
     "stop_sequences": ["\n", "."]
 }
 CONFIG = {
+    "tools": [tool_set_light_values],
     "system_instruction": """
         Anda adalah Rama, AI Asisten yang dibuat untuk membantu Firdaus.
         Fungsi Anda adalah:
@@ -43,3 +44,30 @@ CONFIG = {
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("API key not found in .env file. Please add GOOGLE_API_KEY to .env.")
+
+def handle_tool_call(tool_call):
+    """
+    Menangani tool_call dan memanggil fungsi tool yang sesuai.
+    """
+    # Periksa struktur tool_call dan sesuaikan
+    if hasattr(tool_call, 'call_id'):  # Jika tool_call memiliki call_id
+        tool_id = tool_call.call_id
+    elif hasattr(tool_call, 'request_id'):  # Jika tool_call memiliki request_id
+        tool_id = tool_call.request_id
+    else:
+        tool_id = "default_tool_id"  # Gunakan ID default jika tidak ada
+
+    tool_name = tool_call.function.name  # Nama fungsi tool
+    tool_args = json.loads(tool_call.function.arguments)  # Argumen fungsi tool
+
+    # Panggil fungsi tool yang sesuai
+    if tool_name == "set_light_values":
+        result = set_light_values(tool_args["brightness"], tool_args["color_temp"])
+    else:
+        result = {"error": f"Tool '{tool_name}' tidak ditemukan."}
+
+    # Kembalikan hasil eksekusi tool
+    return {
+        "tool_call_id": tool_id,
+        "tool_response": result
+    }
