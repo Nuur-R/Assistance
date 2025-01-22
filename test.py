@@ -51,15 +51,18 @@ import io
 import os
 import sys
 import traceback
+import argparse
+from dotenv import load_dotenv  # Import library untuk membaca .env
 
 import cv2
 import pyaudio
 import PIL.Image
 import mss
 
-import argparse
-
 from google import genai
+
+# Muat variabel dari file .env
+load_dotenv()
 
 if sys.version_info < (3, 11, 0):
     import taskgroup, exceptiongroup
@@ -67,22 +70,34 @@ if sys.version_info < (3, 11, 0):
     asyncio.TaskGroup = taskgroup.TaskGroup
     asyncio.ExceptionGroup = exceptiongroup.ExceptionGroup
 
+# Konfigurasi langsung di dalam kode
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 SEND_SAMPLE_RATE = 16000
 RECEIVE_SAMPLE_RATE = 24000
 CHUNK_SIZE = 1024
 
-MODEL = "models/gemini-2.0-flash-exp"
-
 DEFAULT_MODE = "camera"
 
-client = genai.Client(http_options={"api_version": "v1alpha"})
+# Ambil API key dari file .env
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    raise ValueError("API key not found in .env file. Please add GOOGLE_API_KEY to .env.")
 
-CONFIG = {"generation_config": {"response_modalities": ["AUDIO"]}}
+# Konfigurasi model dan generasi respons
+MODEL = "models/gemini-2.0-flash-exp"
+GENERATION_CONFIG = {
+    "response_modalities": ["AUDIO"],
+    "temperature": 0.7,
+    "max_tokens": 100,
+    "top_p": 0.9,
+    "stop_sequences": ["\n", "."]
+}
+
+# Inisialisasi klien Gemini dengan API key
+client = genai.Client(api_key=GOOGLE_API_KEY, http_options={"api_version": "v1alpha"})
 
 pya = pyaudio.PyAudio()
-
 
 class AudioLoop:
     def __init__(self, video_mode=DEFAULT_MODE):
@@ -99,25 +114,17 @@ class AudioLoop:
 
     async def send_text(self):
         while True:
-            text = await asyncio.to_thread(
-                input,
-                "message > ",
-            )
+            text = await asyncio.to_thread(input, "message > ")
             if text.lower() == "q":
                 break
             await self.session.send(input=text or ".", end_of_turn=True)
 
     def _get_frame(self, cap):
-        # Read the frameq
         ret, frame = cap.read()
-        # Check if the frame was read successfully
         if not ret:
             return None
-        # Fix: Convert BGR to RGB color space
-        # OpenCV captures in BGR but PIL expects RGB format
-        # This prevents the blue tint in the video feed
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = PIL.Image.fromarray(frame_rgb)  # Now using RGB frame
+        img = PIL.Image.fromarray(frame_rgb)
         img.thumbnail([1024, 1024])
 
         image_io = io.BytesIO()
@@ -129,28 +136,18 @@ class AudioLoop:
         return {"mime_type": mime_type, "data": base64.b64encode(image_bytes).decode()}
 
     async def get_frames(self):
-        # This takes about a second, and will block the whole program
-        # causing the audio pipeline to overflow if you don't to_thread it.
-        cap = await asyncio.to_thread(
-            cv2.VideoCapture, 0
-        )  # 0 represents the default camera
-
+        cap = await asyncio.to_thread(cv2.VideoCapture, 0)
         while True:
             frame = await asyncio.to_thread(self._get_frame, cap)
             if frame is None:
                 break
-
             await asyncio.sleep(1.0)
-
             await self.out_queue.put(frame)
-
-        # Release the VideoCapture object
         cap.release()
 
     def _get_screen(self):
         sct = mss.mss()
         monitor = sct.monitors[0]
-
         i = sct.grab(monitor)
 
         mime_type = "image/jpeg"
@@ -165,14 +162,11 @@ class AudioLoop:
         return {"mime_type": mime_type, "data": base64.b64encode(image_bytes).decode()}
 
     async def get_screen(self):
-
         while True:
             frame = await asyncio.to_thread(self._get_screen)
             if frame is None:
                 break
-
             await asyncio.sleep(1.0)
-
             await self.out_queue.put(frame)
 
     async def send_realtime(self):
@@ -200,7 +194,6 @@ class AudioLoop:
             await self.out_queue.put({"data": data, "mime_type": "audio/pcm"})
 
     async def receive_audio(self):
-        "Background task to reads from the websocket and write pcm chunks to the output queue"
         while True:
             turn = self.session.receive()
             async for response in turn:
@@ -210,10 +203,6 @@ class AudioLoop:
                 if text := response.text:
                     print(text, end="")
 
-            # If you interrupt the model, it sends a turn_complete.
-            # For interruptions to work, we need to stop playback.
-            # So empty out the audio queue because it may have loaded
-            # much more audio than has played yet.
             while not self.audio_in_queue.empty():
                 self.audio_in_queue.get_nowait()
 
@@ -232,7 +221,7 @@ class AudioLoop:
     async def run(self):
         try:
             async with (
-                client.aio.live.connect(model=MODEL, config=CONFIG) as session,
+                client.aio.live.connect(model=MODEL, config=GENERATION_CONFIG) as session,
                 asyncio.TaskGroup() as tg,
             ):
                 self.session = session
@@ -259,7 +248,6 @@ class AudioLoop:
         except ExceptionGroup as EG:
             self.audio_stream.close()
             traceback.print_exception(EG)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

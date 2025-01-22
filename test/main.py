@@ -1,68 +1,35 @@
-## pip install google-genai==0.3.0
-
+## pip install --upgrade google-genai==0.3.0 google-generativeai==0.8.3##
 import asyncio
 import json
 import os
 import websockets
 from google import genai
 import base64
+import io
+from pydub import AudioSegment
+import google.generativeai as generative
+import wave
 
 # Load API key from environment
 os.environ['GOOGLE_API_KEY'] = 'AIzaSyBTtRe2IA3o14lxAMOsO83Xhsy2KxSIlMg'
+generative.configure(api_key=os.environ['GOOGLE_API_KEY'])
 MODEL = "gemini-2.0-flash-exp"  # use your model ID
+TRANSCRIPTION_MODEL = "gemini-1.5-flash-8b"
 
 client = genai.Client(
-    http_options={
-        'api_version': 'v1alpha',
-    }
+  http_options={
+    'api_version': 'v1alpha',
+  }
 )
 
-
-# Mock function for set_light_values
-def set_light_values(brightness, color_temp):
-
-    return {
-        "brightness": brightness,
-        "colorTemperature": color_temp,
-    }
-
-# Define the tool (function)
-tool_set_light_values = {
-    "function_declarations": [
-        {
-            "name": "set_light_values",
-            "description": "Set the brightness and color temperature of a room light.",
-            "parameters": {
-                "type": "OBJECT",
-                "properties": {
-                    "brightness": {
-                        "type": "NUMBER",
-                        "description": "Light level from 0 to 100. Zero is off and 100 is full brightness"
-                    },
-                    "color_temp": {
-                        "type": "STRING",
-                        "description": "Color temperature of the light fixture, which can be `daylight`, `cool` or `warm`."
-                    }
-                },
-                "required": ["brightness", "color_temp"]
-            }
-        }
-    ]
-}
-
 async def gemini_session_handler(client_websocket: websockets.WebSocketServerProtocol):
-    """Handles the interaction with Gemini API within a websocket session.
-
-    Args:
-        client_websocket: The websocket connection to the client.
-    """
+    """Handles the interaction with Gemini API within a websocket session."""
     try:
         config_message = await client_websocket.recv()
         config_data = json.loads(config_message)
         config = config_data.get("setup", {})
-        
-        config["tools"] = [tool_set_light_values]
-        
+         
+
         async with client.aio.live.connect(model=MODEL, config=config) as session:
             print("Connected to Gemini API")
 
@@ -97,74 +64,44 @@ async def gemini_session_handler(client_websocket: websockets.WebSocketServerPro
                         try:
                             print("receiving from gemini")
                             async for response in session.receive():
-                                #first_response = True
-                                #print(f"response: {response}")
                                 if response.server_content is None:
-                                    if response.tool_call is not None:
-                                          #handle the tool call
-                                           print(f"Tool call received: {response.tool_call}")
-
-                                           function_calls = response.tool_call.function_calls
-                                           function_responses = []
-
-                                           for function_call in function_calls:
-                                                 name = function_call.name
-                                                 args = function_call.args
-                                                 # Extract the numeric part from Gemini's function call ID
-                                                 call_id = function_call.id
-
-                                                 # Validate function name
-                                                 if name == "set_light_values":
-                                                      try:
-                                                          result = set_light_values(int(args["brightness"]), args["color_temp"])
-                                                          function_responses.append(
-                                                             {
-                                                                 "name": name,
-                                                                 #"response": {"result": "The light is broken."},
-                                                                 "response": {"result": result},
-                                                                 "id": call_id  
-                                                             }
-                                                          ) 
-                                                          await client_websocket.send(json.dumps({"text": json.dumps(function_responses)}))
-                                                          print("Function executed")
-                                                      except Exception as e:
-                                                          print(f"Error executing function: {e}")
-                                                          continue
-
-
-                                           # Send function response back to Gemini
-                                           print(f"function_responses: {function_responses}")
-                                           await session.send(function_responses)
-                                           continue
-
-                                    #print(f'Unhandled server message! - {response}')
-                                    #continue
+                                    print(f'Unhandled server message! - {response}')
+                                    continue
 
                                 model_turn = response.server_content.model_turn
                                 if model_turn:
                                     for part in model_turn.parts:
-                                        #print(f"part: {part}")
                                         if hasattr(part, 'text') and part.text is not None:
-                                            #print(f"text: {part.text}")
                                             await client_websocket.send(json.dumps({"text": part.text}))
                                         elif hasattr(part, 'inline_data') and part.inline_data is not None:
-                                            # if first_response:
-                                            #print("audio mime_type:", part.inline_data.mime_type)
-                                                #first_response = False
+                                            print("audio mime_type:", part.inline_data.mime_type)
                                             base64_audio = base64.b64encode(part.inline_data.data).decode('utf-8')
-                                            await client_websocket.send(json.dumps({
-                                                "audio": base64_audio,
-                                            }))
+                                            
+                                            await client_websocket.send(json.dumps({"audio": base64_audio}))
+                                            
+                                            # Accumulate the audio data here
+                                            if not hasattr(session, 'audio_data'):
+                                                session.audio_data = b''
+                                            session.audio_data += part.inline_data.data
+                                            
                                             print("audio received")
 
                                 if response.server_content.turn_complete:
                                     print('\n<Turn complete>')
+                                    # Transcribe the accumulated audio here
+                                    transcribed_text = transcribe_audio(session.audio_data)
+                                    if transcribed_text:    
+                                        await client_websocket.send(json.dumps({
+                                            "text": transcribed_text
+                                        }))
+                                    # Clear the accumulated audio data
+                                    session.audio_data = b''
                         except websockets.exceptions.ConnectionClosedOK:
                             print("Client connection closed normally (receive)")
                             break  # Exit the loop if the connection is closed
                         except Exception as e:
                             print(f"Error receiving from Gemini: {e}")
-                            break # exit the lo
+                            break 
 
                 except Exception as e:
                       print(f"Error receiving from Gemini: {e}")
@@ -184,10 +121,74 @@ async def gemini_session_handler(client_websocket: websockets.WebSocketServerPro
     finally:
         print("Gemini session closed.")
 
+def transcribe_audio(audio_data):
+    """Transcribes audio using Gemini 1.5 Flash."""
+    try:
+        # Make sure we have valid audio data
+        if not audio_data:
+            return "No audio data received."
+            
+        # Convert PCM to MP3
+        mp3_audio_base64 = convert_pcm_to_mp3(audio_data)
+        if not mp3_audio_base64:
+            return "Audio conversion failed."
+            
+        # Create a client specific for transcription (assuming Gemini 1.5 flash)
+        transcription_client = generative.GenerativeModel(model_name=TRANSCRIPTION_MODEL)
+        
+        prompt = """Generate a transcript of the speech. 
+        Please do not include any other text in the response. 
+        If you cannot hear the speech, please only say '<Not recognizable>'."""
+        
+        response = transcription_client.generate_content(
+            [
+                prompt,
+                {
+                    "mime_type": "audio/mp3", 
+                    "data": base64.b64decode(mp3_audio_base64),
+                }
+            ]
+        )
+            
+        return response.text
+
+    except Exception as e:
+        print(f"Transcription error: {e}")
+        return "Transcription failed.", None
+
+def convert_pcm_to_mp3(pcm_data):
+    """Converts PCM audio to base64 encoded MP3."""
+    try:
+        # Create a WAV in memory first
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wav_file:
+            wav_file.setnchannels(1)  # mono
+            wav_file.setsampwidth(2)  # 16-bit
+            wav_file.setframerate(24000)  # 24kHz
+            wav_file.writeframes(pcm_data)
+        
+        # Reset buffer position
+        wav_buffer.seek(0)
+        
+        # Convert WAV to MP3
+        audio_segment = AudioSegment.from_wav(wav_buffer)
+        
+        # Export as MP3
+        mp3_buffer = io.BytesIO()
+        audio_segment.export(mp3_buffer, format="mp3", codec="libmp3lame")
+        
+        # Convert to base64
+        mp3_base64 = base64.b64encode(mp3_buffer.getvalue()).decode('utf-8')
+        return mp3_base64
+        
+    except Exception as e:
+        print(f"Error converting PCM to MP3: {e}")
+        return None
+
 
 async def main() -> None:
-    async with websockets.serve(gemini_session_handler, "localhost", 9082):
-        print("Running websocket server localhost:9082...")
+    async with websockets.serve(gemini_session_handler, "localhost", 9083):
+        print("Running websocket server localhost:9083...")
         await asyncio.Future()  # Keep the server running indefinitely
 
 
