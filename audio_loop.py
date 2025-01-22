@@ -1,3 +1,4 @@
+import sys  # Tambahkan baris ini
 import asyncio
 import traceback
 import cv2
@@ -7,6 +8,12 @@ from utils.audio_utils import open_audio_stream, close_audio_stream
 from utils.video_utils import get_frame
 from utils.api_utils import connect_to_gemini
 
+# Handle TaskGroup for Python < 3.11
+if sys.version_info < (3, 11, 0):
+    import taskgroup, exceptiongroup
+    asyncio.TaskGroup = taskgroup.TaskGroup
+    asyncio.ExceptionGroup = exceptiongroup.ExceptionGroup
+
 pya = pyaudio.PyAudio()
 
 class AudioLoop:
@@ -15,6 +22,7 @@ class AudioLoop:
         self.audio_in_queue = asyncio.Queue()
         self.out_queue = asyncio.Queue(maxsize=5)
         self.session = None
+        self.audio_stream = None
 
     async def send_text(self):
         while True:
@@ -66,7 +74,7 @@ class AudioLoop:
                     if tool_call:
                         tool_response = handle_tool_call(tool_call)
                         await self.session.send(
-                            tool_call_id=str(tool_response["tool_call_id"]),  # Konversi ke string jika diperlukan
+                            tool_call_id=str(tool_response["tool_call_id"]),
                             tool_response=tool_response["tool_response"]
                         )
 
@@ -105,7 +113,11 @@ class AudioLoop:
                 raise asyncio.CancelledError("User requested exit")
 
         except asyncio.CancelledError:
-            pass
+            print("Aplikasi dihentikan oleh pengguna.")
         except ExceptionGroup as EG:
-            self.audio_stream.close()
+            print("Terjadi kesalahan:")
             traceback.print_exception(EG)
+        finally:
+            if self.audio_stream:
+                self.audio_stream.close()
+            print("Semua resource telah dibersihkan.")
