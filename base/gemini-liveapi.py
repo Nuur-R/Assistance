@@ -5,9 +5,6 @@ import traceback
 import pyaudio
 from dotenv import load_dotenv
 from google import genai
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,10 +21,10 @@ MODEL = "models/gemini-2.0-flash-exp"
 client = genai.Client(http_options={"api_version": "v1alpha"})
 CONFIG = {
     "system_instruction": """
-        Your name is Rama, you are an assistant for Firdaus, your creator.
-        You have several main tasks:
-        1. Provide information based on the context provided.
-        2. Help the user improve their English.
+        Your name is  Rama, you are an assistance for Firdaus, your creator
+        you have several main task:
+        1. You give user what Information he want to ask.
+        2. You will help user to improve their English.
     """,
     "generation_config": {
         "response_modalities": ["AUDIO"],
@@ -44,19 +41,7 @@ CONFIG = {
 # Initialize PyAudio
 pya = pyaudio.PyAudio()
 
-# Sample documents for RAG (replace with your own data)
-DOCUMENTS = [
-    "The capital of France is Paris.",
-    "Python is a popular programming language.",
-    "The Eiffel Tower is located in Paris.",
-    "Machine learning is a subset of artificial intelligence.",
-]
-
-# Embedding model for RAG
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-document_embeddings = embedding_model.encode(DOCUMENTS)
-
-class VoiceInteractionWithRAG:
+class main:
     def __init__(self):
         self.audio_in_queue = None
         self.session = None
@@ -80,24 +65,11 @@ class VoiceInteractionWithRAG:
             data = await asyncio.to_thread(self.audio_stream.read, CHUNK_SIZE)
             await self.session.send(input={"data": data, "mime_type": "audio/pcm"})
 
-    async def retrieve_context(self, query):
-        """Retrieve relevant context using RAG."""
-        query_embedding = embedding_model.encode(query)
-        similarities = cosine_similarity([query_embedding], document_embeddings)[0]
-        most_similar_index = np.argmax(similarities)
-        return DOCUMENTS[most_similar_index]
-
     async def receive_audio(self):
         """Task to receive audio responses from the model and write them to the queue."""
         while True:
             turn = self.session.receive()
             async for response in turn:
-                if text := response.text:
-                    # Retrieve context using RAG
-                    context = await self.retrieve_context(text)
-                    # Combine context with the user's input
-                    augmented_prompt = f"Context: {context}\nQuestion: {text}"
-                    await self.session.send(input=augmented_prompt, end_of_turn=True)
                 if data := response.data:
                     self.audio_in_queue.put_nowait(data)
 
@@ -126,7 +98,7 @@ class VoiceInteractionWithRAG:
                 tg.create_task(self.listen_audio())
                 tg.create_task(self.receive_audio())
                 tg.create_task(self.play_audio())
-                print("Voice interaction with RAG started. Press Ctrl+C to exit.")
+                print("Voice interaction started. Press Ctrl+C to exit.")
                 await asyncio.Event().wait()  # Keep running until interrupted
         except KeyboardInterrupt:
             print("\nExiting...")
@@ -141,6 +113,6 @@ if __name__ == "__main__":
     if not api_key:
         raise ValueError("GOOGLE_API_KEY is not set in the .env file.")
     
-    # Run the voice interaction loop with RAG
-    voice_interaction = VoiceInteractionWithRAG()
+    # Run the voice interaction loop
+    voice_interaction = main()
     asyncio.run(voice_interaction.run())
